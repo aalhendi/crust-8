@@ -29,6 +29,43 @@ struct VM {
 const SCREEN_WIDTH: usize = 64;
 const SCREEN_HEIGHT: usize = 32;
 
+const SPRITE_ZERO: [u8; 5] = [0xF0, 0x90, 0x90, 0x90, 0xF0];
+const SPRITE_ONE: [u8; 5] = [0x20, 0x60, 0x20, 0x20, 0x70];
+const SPRITE_TWO: [u8; 5] = [0xF0, 0x10, 0xF0, 0x80, 0xF0];
+const SPRITE_THREE: [u8; 5] = [0xF0, 0x10, 0xF0, 0x10, 0xF0];
+const SPRITE_FOUR: [u8; 5] = [0x90, 0x90, 0xF0, 0x10, 0x10];
+const SPRITE_FIVE: [u8; 5] = [0xF0, 0x80, 0xF0, 0x10, 0xF0];
+const SPRITE_SIX: [u8; 5] = [0xF0, 0x80, 0xF0, 0x90, 0xF0];
+const SPRITE_SEVEN: [u8; 5] = [0xF0, 0x10, 0x20, 0x40, 0x40];
+const SPRITE_EIGHT: [u8; 5] = [0xF0, 0x90, 0xF0, 0x90, 0xF0];
+const SPRITE_NINE: [u8; 5] = [0xF0, 0x90, 0xF0, 0x10, 0xF0];
+const SPRITE_A: [u8; 5] = [0xF0, 0x90, 0xF0, 0x90, 0x90];
+const SPRITE_B: [u8; 5] = [0xE0, 0x90, 0xE0, 0x90, 0xE0];
+const SPRITE_C: [u8; 5] = [0xF0, 0x80, 0x80, 0x80, 0xF0];
+const SPRITE_D: [u8; 5] = [0xE0, 0x90, 0x90, 0x90, 0xE0];
+const SPRITE_E: [u8; 5] = [0xF0, 0x80, 0xF0, 0x80, 0xF0];
+const SPRITE_F: [u8; 5] = [0xF0, 0x80, 0xF0, 0x80, 0x80];
+
+#[rustfmt::skip]
+const SPRITES: [u8; 80] = [
+    SPRITE_ZERO[0], SPRITE_ZERO[1], SPRITE_ZERO[2], SPRITE_ZERO[3], SPRITE_ZERO[4],
+    SPRITE_ONE[0], SPRITE_ONE[1], SPRITE_ONE[2], SPRITE_ONE[3], SPRITE_ONE[4],
+    SPRITE_TWO[0], SPRITE_TWO[1], SPRITE_TWO[2], SPRITE_TWO[3], SPRITE_TWO[4],
+    SPRITE_THREE[0], SPRITE_THREE[1], SPRITE_THREE[2], SPRITE_THREE[3], SPRITE_THREE[4],
+    SPRITE_FOUR[0], SPRITE_FOUR[1], SPRITE_FOUR[2], SPRITE_FOUR[3], SPRITE_FOUR[4],
+    SPRITE_FIVE[0], SPRITE_FIVE[1], SPRITE_FIVE[2], SPRITE_FIVE[3], SPRITE_FIVE[4],
+    SPRITE_SIX[0], SPRITE_SIX[1], SPRITE_SIX[2], SPRITE_SIX[3], SPRITE_SIX[4],
+    SPRITE_SEVEN[0], SPRITE_SEVEN[1], SPRITE_SEVEN[2], SPRITE_SEVEN[3], SPRITE_SEVEN[4],
+    SPRITE_EIGHT[0], SPRITE_EIGHT[1], SPRITE_EIGHT[2], SPRITE_EIGHT[3], SPRITE_EIGHT[4],
+    SPRITE_NINE[0], SPRITE_NINE[1], SPRITE_NINE[2], SPRITE_NINE[3], SPRITE_NINE[4],
+    SPRITE_A[0], SPRITE_A[1], SPRITE_A[2], SPRITE_A[3], SPRITE_A[4],
+    SPRITE_B[0], SPRITE_B[1], SPRITE_B[2], SPRITE_B[3], SPRITE_B[4],
+    SPRITE_C[0], SPRITE_C[1], SPRITE_C[2], SPRITE_C[3], SPRITE_C[4],
+    SPRITE_D[0], SPRITE_D[1], SPRITE_D[2], SPRITE_D[3], SPRITE_D[4],
+    SPRITE_E[0], SPRITE_E[1], SPRITE_E[2], SPRITE_E[3], SPRITE_E[4],
+    SPRITE_F[0], SPRITE_F[1], SPRITE_F[2], SPRITE_F[3], SPRITE_F[4],
+    ];
+
 struct Screen {
     pixels: [[bool; SCREEN_WIDTH]; SCREEN_HEIGHT],
 }
@@ -43,8 +80,15 @@ impl Screen {
 
 impl VM {
     pub fn new() -> Self {
+        let mut ram = [0; 4096];
+
+        // TODO(aalhendi): maybe a faster way for this
+        for (i, &byte) in SPRITES.iter().enumerate() {
+            ram[i] = byte;
+        }
+
         Self {
-            ram: [0; 4096],
+            ram,
             registers: [0; 16],
             i: 0,
             dt: 0,
@@ -233,7 +277,29 @@ impl VM {
     // Sprites are XORed onto existing screen. If this causes any pixels to be erased, VF is set to 1, else VF set to 0.
     // If sprite is positioned so part is outside the coordinates of the display, it wraps around to opposite side of screen.
     fn drw_vx_vy_n(&mut self, x: u8, y: u8, n: u8) {
-        // TODO(aalhendi)
+        // Reset VF register
+        self.registers[0xF] = 0;
+
+        let x_pos = self.registers[x as usize] % SCREEN_WIDTH as u8;
+        let y_pos = self.registers[y as usize] % SCREEN_HEIGHT as u8;
+
+        for byte_index in 0..n {
+            let sprite_byte = self.ram[(self.i + byte_index as u16) as usize];
+            for bit_index in 0..8 {
+                let sprite_pixel = (sprite_byte >> (7 - bit_index)) & 1;
+                let x_coord = (x_pos as usize + bit_index as usize) % SCREEN_WIDTH;
+                let y_coord = (y_pos as usize + byte_index as usize) % SCREEN_HEIGHT;
+
+                // XOR sprite pixel with the existing pixel on the display
+                if sprite_pixel == 1 {
+                    // collision check
+                    if self.display.pixels[y_coord][x_coord] {
+                        self.registers[0xF] = 1;
+                    }
+                    self.display.pixels[y_coord][x_coord] ^= true;
+                }
+            }
+        }
     }
 
     /// Skip next instruction if key with the value of Vx is pressed.
@@ -281,16 +347,17 @@ impl VM {
     /// Set I = location of sprite for digit Vx.
     /// value of I set to location for the hexadecimal sprite equal to the value of Vx.
     fn ld_f_vx(&mut self, x: u8) {
-        // TODO(aalhendi)
+        let digit = self.registers[x as usize] as usize;
+        self.i = self.ram[digit * 5] as u16;
     }
 
     /// Store Binary-Coded Decimal (BCD) representation of Vx in memory locations I, I+1, and I+2.
     /// interpreter decimal value of Vx, places (in memory) hundreds digit at location I, tens I+1, ones I+2.
     fn ld_b_vx(&mut self, x: u8) {
         let vx = self.registers[x as usize];
-        let hundreds = vx / 100; // Extracts the hundreds digit
-        let tens = (vx / 10) % 10; // Extracts the tens digit
-        let ones = vx % 10; // Extracts the ones (unit) digit
+        let hundreds = vx / 100; 
+        let tens = (vx / 10) % 10; 
+        let ones = vx % 10; 
         let i = self.i as usize;
         self.ram[i] = hundreds;
         self.ram[i + 1] = tens;
