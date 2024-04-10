@@ -118,8 +118,8 @@ impl VM {
         }
 
         // TODO(aalhendi): handle beep
-        if self.dt > 0 {
-            self.dt -= 1;
+        if self.st > 0 {
+            self.st -= 1;
         }
     }
 
@@ -135,8 +135,8 @@ impl VM {
     /// Return from a subroutine.
     /// interpreter sets PC to addr at top of the stack, subtracts 1 from the sp.
     fn ret(&mut self) {
-        self.pc = self.stack[self.sp];
         self.sp -= 1;
+        self.pc = self.stack[self.sp];
     }
 
     /// Jump to a machine code routine at nnn.
@@ -154,8 +154,8 @@ impl VM {
     /// Call subroutine at nnn.
     /// interpreter increments sp, puts current PC on top of stack. PC is set to nnn.
     fn call(&mut self, nnn: u16) {
-        self.sp += 1;
         self.stack[self.sp] = self.pc;
+        self.sp += 1;
         self.pc = nnn;
     }
 
@@ -192,7 +192,8 @@ impl VM {
     /// Set Vx = Vx + kk.
     /// Adds kk to register Vx, then stores the result in Vx.
     fn add_vx_kk(&mut self, x: u8, kk: u8) {
-        self.registers[x as usize] += kk;
+        let x = x as usize;
+        self.registers[x] = self.registers[x].wrapping_add(kk);
     }
 
     /// Set Vx = Vy.
@@ -223,25 +224,23 @@ impl VM {
     /// Vx and Vy values are added together. If result > 255 (8-bits) Vf set to 1, else 0.
     /// Only lowest 8 bits are kept and stored in Vx
     fn add_vx_vy(&mut self, x: u8, y: u8) {
-        let result = (self.registers[x as usize] + self.registers[y as usize]) as usize;
-        self.registers[x as usize] = result as u8;
-        if result > u8::MAX as usize {
-            self.registers[0xF] = 1;
-        } else {
-            self.registers[0xF] = 0;
-        }
+        let x = x as usize;
+        let y = y as usize;
+
+        let (new_vx, carry) = self.registers[x].overflowing_add(self.registers[y]);
+        self.registers[x] = new_vx;
+        self.registers[0xF] = if carry { 1 } else { 0 };
     }
 
     /// Set Vx = Vx - Vy, set VF = NOT borrow.
     /// If Vx > Vy, VF set to 1, else 0. Vy is subtracted from Vx, results stored in Vx.
     fn sub_vx_vy(&mut self, x: u8, y: u8) {
-        let flag = self.registers[x as usize] > self.registers[y as usize];
-        self.registers[x as usize] -= self.registers[y as usize];
-        if flag {
-            self.registers[0xF] = 1;
-        } else {
-            self.registers[0xF] = 0;
-        }
+        let x = x as usize;
+        let y = y as usize;
+
+        let (new_vx, borrow) = self.registers[x].overflowing_sub(self.registers[y]);
+        self.registers[x] = new_vx;
+        self.registers[0xF] = if borrow { 0 } else { 1 };
     }
 
     /// Set Vx = Vx >> 1.
@@ -255,13 +254,13 @@ impl VM {
     /// Set Vx = Vy - Vx, set VF = NOT borrow.
     /// If Vy > Vx, VF is set to 1, else 0. Vx is subtracted from Vy, results stored in Vx.
     fn subn_vx_vy(&mut self, x: u8, y: u8) {
-        let flag = self.registers[y as usize] > self.registers[x as usize];
-        self.registers[x as usize] = self.registers[y as usize] - self.registers[x as usize];
-        if flag {
-            self.registers[0xF] = 1;
-        } else {
-            self.registers[0xF] = 0;
-        }
+        let x = x as usize;
+        let y = y as usize;
+
+        let (new_vx, borrow) = self.registers[y].overflowing_sub(self.registers[x]);
+        let new_vf = if borrow { 0 } else { 1 };
+        self.registers[x] = new_vx;
+        self.registers[0xF] = new_vf;
     }
 
     /// Set Vx = Vx << 1.
@@ -409,7 +408,7 @@ impl VM {
     /// interpreter copies values of registers V0 through Vx into memory, starting at the address in I.
     fn ld_i_vx(&mut self, x: u8) {
         let i = self.i as usize;
-        for idx in 0..(x as usize) {
+        for idx in 0..=(x as usize) {
             self.ram[i + idx] = self.registers[idx];
         }
     }
@@ -419,7 +418,7 @@ impl VM {
     fn ld_vx_i(&mut self, x: u8) {
         let i = self.i as usize;
         for idx in 0..=(x as usize) {
-            self.registers[idx] = self.registers[i + idx];
+            self.registers[idx] = self.ram[i + idx];
         }
     }
 
