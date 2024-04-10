@@ -1,7 +1,7 @@
 mod vm;
 use std::fs;
 
-use sdl2::{event::Event, keyboard::Keycode, pixels::Color};
+use sdl2::{event::Event, keyboard::Keycode, pixels::Color, rect::Rect};
 use vm::{SCREEN_HEIGHT, SCREEN_WIDTH, VM};
 
 fn setup() -> VM {
@@ -31,7 +31,7 @@ fn main() -> Result<(), String> {
 
     let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
 
-    canvas.set_draw_color(Color::RGB(255, 0, 0));
+    canvas.set_draw_color(Color::RGB(0, 0, 0));
     canvas.clear();
     canvas.present();
     let mut event_pump = sdl_context.event_pump()?;
@@ -67,13 +67,31 @@ fn main() -> Result<(), String> {
             }
         }
 
-        // TODO(aalhendi): Tickrate
         vm.decode();
         vm.tick_timers();
-        println!("{}", vm.pc);
-        canvas.clear();
+        // TODO(aalhendi): draw fn
+        {
+            if !vm.display.draw_flag {
+                continue;
+            }
+            let mut pixel: u8;
+            let pt = |p: usize| (p as i32) * (SCALE as i32);
+
+            for y in 0..32 {
+                for x in 0..64 {
+                    pixel = if vm.display.pixels[y][x] { 255 } else { 0 };
+
+                    canvas.set_draw_color(Color::RGB(pixel, pixel, pixel));
+                    canvas.fill_rect(Some(Rect::new(pt(x), pt(y), SCALE as u32, SCALE as u32)))?;
+                }
+            }
+
         canvas.present();
-        // The rest of the game loop goes here...
+            vm.display.draw_flag = false;
+        }
+
+        // TODO(aalhendi): Tickrate
+        std::thread::sleep(std::time::Duration::from_millis(2));
     }
 
     Ok(())

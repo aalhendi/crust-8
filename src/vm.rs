@@ -26,7 +26,8 @@ pub struct VM {
     stack: [u16; 16],
     // 64x32-pixel monochrome display with this format
     // TODO(aalhendi): Render pixels
-    display: Screen,
+    // TODO(aalhendi): not pub later
+    pub display: Screen,
     // Keyboard was 16 keys
     keys: [bool; 16],
 }
@@ -72,15 +73,22 @@ const SPRITES: [u8; 80] = [
     ];
 
 #[derive(Debug)]
-struct Screen {
-    pixels: [[bool; SCREEN_WIDTH]; SCREEN_HEIGHT],
+pub struct Screen {
+    pub pixels: [[bool; SCREEN_WIDTH]; SCREEN_HEIGHT],
+    pub draw_flag: bool,
 }
 
 impl Screen {
     pub fn new() -> Self {
         Self {
             pixels: [[false; SCREEN_WIDTH]; SCREEN_HEIGHT],
+            draw_flag: true,
         }
+    }
+
+    pub fn clear(&mut self) {
+        self.pixels = [[false; SCREEN_WIDTH]; SCREEN_HEIGHT];
+        self.draw_flag = true;
     }
 }
 
@@ -129,7 +137,7 @@ impl VM {
 
     /// Clear the display.
     fn cls(&mut self) {
-        self.display = Screen::new();
+        self.display.clear();
     }
 
     /// Return from a subroutine.
@@ -327,6 +335,8 @@ impl VM {
                 }
             }
         }
+
+        self.display.draw_flag = true;
     }
 
     /// Skip next instruction if key with the value of Vx is pressed.
