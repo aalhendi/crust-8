@@ -1,13 +1,14 @@
 mod vm;
+mod display;
 use std::fs;
 
-use sdl2::{event::Event, keyboard::Keycode, pixels::Color, rect::Rect};
+use sdl2::{event::Event, keyboard::Keycode, pixels::Color, render::Canvas, video::Window};
 use vm::{SCREEN_HEIGHT, SCREEN_WIDTH, VM};
 
-fn setup() -> VM {
+fn setup(canvas: Canvas<Window>) -> VM {
     let file =
         fs::read("./chip8-roms/games/Pong [Paul Vervalin, 1990].ch8").expect("Unable to read file");
-    let mut vm = VM::new();
+    let mut vm = VM::new(canvas);
     vm.load_rom(&file);
     vm
 }
@@ -36,7 +37,7 @@ fn main() -> Result<(), String> {
     canvas.present();
     let mut event_pump = sdl_context.event_pump()?;
 
-    let mut vm = setup();
+    let mut vm = setup(canvas);
 
     'running: loop {
         for event in event_pump.poll_iter() {
@@ -69,26 +70,7 @@ fn main() -> Result<(), String> {
 
         vm.decode();
         vm.tick_timers();
-        // TODO(aalhendi): draw fn
-        {
-            if !vm.display.draw_flag {
-                continue;
-            }
-            let mut pixel: u8;
-            let pt = |p: usize| (p as i32) * (SCALE as i32);
-
-            for y in 0..32 {
-                for x in 0..64 {
-                    pixel = if vm.display.pixels[y][x] { 255 } else { 0 };
-
-                    canvas.set_draw_color(Color::RGB(pixel, pixel, pixel));
-                    canvas.fill_rect(Some(Rect::new(pt(x), pt(y), SCALE as u32, SCALE as u32)))?;
-                }
-            }
-
-        canvas.present();
-            vm.display.draw_flag = false;
-        }
+        vm.display.draw()?;
 
         // TODO(aalhendi): Tickrate
         std::thread::sleep(std::time::Duration::from_millis(2));

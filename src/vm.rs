@@ -1,7 +1,9 @@
 use rand::random;
+use sdl2::{render::Canvas, video::Window};
+
+use crate::display::Screen;
 
 /// http://devernay.free.fr/hacks/chip8/C8TECH10.HTM
-#[derive(Debug)]
 pub struct VM {
     // 4KB (4,096 bytes) of RAM, from location 0x000 (0) to 0xFFF (4095)
     // 0x000 to 0x1FF (512b) reserved for original interpreter, should not be used by programs
@@ -25,8 +27,6 @@ pub struct VM {
     // allows 16 levels of nested subroutines
     stack: [u16; 16],
     // 64x32-pixel monochrome display with this format
-    // TODO(aalhendi): Render pixels
-    // TODO(aalhendi): not pub later
     pub display: Screen,
     // Keyboard was 16 keys
     keys: [bool; 16],
@@ -72,28 +72,8 @@ const SPRITES: [u8; 80] = [
     SPRITE_F[0], SPRITE_F[1], SPRITE_F[2], SPRITE_F[3], SPRITE_F[4],
     ];
 
-#[derive(Debug)]
-pub struct Screen {
-    pub pixels: [[bool; SCREEN_WIDTH]; SCREEN_HEIGHT],
-    pub draw_flag: bool,
-}
-
-impl Screen {
-    pub fn new() -> Self {
-        Self {
-            pixels: [[false; SCREEN_WIDTH]; SCREEN_HEIGHT],
-            draw_flag: true,
-        }
-    }
-
-    pub fn clear(&mut self) {
-        self.pixels = [[false; SCREEN_WIDTH]; SCREEN_HEIGHT];
-        self.draw_flag = true;
-    }
-}
-
 impl VM {
-    pub fn new() -> Self {
+    pub fn new(canvas: Canvas<Window>) -> Self {
         let mut ram = [0; 4096];
 
         // TODO(aalhendi): maybe a faster way for this
@@ -110,7 +90,7 @@ impl VM {
             pc: 0x200,
             sp: 0,
             stack: [0; 16],
-            display: Screen::new(),
+            display: Screen::new(canvas),
             keys: [false; 16],
         }
     }
@@ -328,15 +308,15 @@ impl VM {
                 // XOR sprite pixel with the existing pixel on the display
                 if sprite_pixel == 1 {
                     // collision check
-                    if self.display.pixels[y_coord][x_coord] {
+                    if self.display.get_pixel_state(x_coord, y_coord) {
                         self.registers[0xF] = 1;
                     }
-                    self.display.pixels[y_coord][x_coord] ^= true;
+                    self.display.xor_pixel(x_coord, y_coord, true);
                 }
             }
         }
 
-        self.display.draw_flag = true;
+        self.display.set_draw_flag(true);
     }
 
     /// Skip next instruction if key with the value of Vx is pressed.
