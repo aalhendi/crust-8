@@ -1,7 +1,7 @@
 use rand::random;
 use sdl2::{render::Canvas, video::Window};
 
-use crate::display::Screen;
+use crate::{display::Screen, SquareWave};
 
 /// http://devernay.free.fr/hacks/chip8/C8TECH10.HTM
 pub struct VM {
@@ -28,6 +28,7 @@ pub struct VM {
     stack: [u16; 16],
     // 64x32-pixel monochrome display with this format
     pub display: Screen,
+    speaker: sdl2::audio::AudioDevice<SquareWave>,
     // Keyboard was 16 keys
     keys: [bool; 16],
 }
@@ -73,7 +74,7 @@ const SPRITES: [u8; 80] = [
     ];
 
 impl VM {
-    pub fn new(canvas: Canvas<Window>) -> Self {
+    pub fn new(canvas: Canvas<Window>, audio_device: sdl2::audio::AudioDevice<SquareWave>) -> Self {
         let mut ram = [0; 4096];
 
         // TODO(aalhendi): maybe a faster way for this
@@ -92,6 +93,7 @@ impl VM {
             stack: [0; 16],
             display: Screen::new(canvas),
             keys: [false; 16],
+            speaker: audio_device
         }
     }
 
@@ -105,9 +107,11 @@ impl VM {
             self.dt -= 1;
         }
 
-        // TODO(aalhendi): handle beep
         if self.st > 0 {
+            self.speaker.resume();
             self.st -= 1;
+        } else {
+            self.speaker.pause();
         }
     }
 
