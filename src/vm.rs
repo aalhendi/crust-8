@@ -378,7 +378,7 @@ impl VM {
     /// value of I set to location for the hexadecimal sprite equal to the value of Vx.
     fn ld_f_vx(&mut self, x: u8) {
         let digit = self.registers[x as usize] as usize;
-        self.i = self.ram[digit * 5] as u16;
+        self.i = (digit * 5) as u16;
     }
 
     /// Store Binary-Coded Decimal (BCD) representation of Vx in memory locations I, I+1, and I+2.
